@@ -591,19 +591,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
-    /* Kiosk koruması: Ekranın kazara yukarı aşağı kaymasını tamamen engeller */
+    /* Kiosk koruması: Tüm sayfanın kaymasını engeller */
     html, body {
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        overflow: hidden !important;
-        touch-action: none;
+        position: fixed; width: 100%; height: 100%;
+        overflow: hidden !important; touch-action: none;
     }
-
-    /* Mobirise'ın kendi kısıtlayıcı açılır pencerelerini devre dışı bırakıyoruz */
     .modal, .modal-backdrop, [data-toggle="modal"], [data-bs-toggle="modal"] { 
-        display: none !important; 
-        pointer-events: none !important; 
+        display: none !important; pointer-events: none !important; 
     }
     
     /* Büyük Görsel Penceresi */
@@ -613,26 +607,18 @@
         align-items: center; z-index: 999999 !important; overflow: hidden;
         touch-action: none;
     }
-    
-    /* Yakınlaşan Resim ve Sürükleme Alanı */
     .zoom-konteyner {
-        width: 100%;
-        height: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        overflow: hidden;
-        position: relative;
+        width: 100%; height: 100%; display: flex;
+        justify-content: center; align-items: center;
+        overflow: hidden; position: relative;
     }
-    
     #dokunmatik-zoom-img {
         max-width: 95%; max-height: 95%; object-fit: contain;
-        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
-        transform: scale(1) translate(0px, 0px); cursor: zoom-in;
+        transform-origin: center center;
+        transform: translate(0px, 0px) scale(1);
         position: absolute;
+        will-change: transform;
     }
-    
-    /* Geri Dön Butonu */
     #dokunmatik-kapat-btn {
         position: fixed; top: 25px; left: 25px; padding: 15px 35px;
         background: #ff4757; color: white; border: none; border-radius: 50px;
@@ -653,12 +639,21 @@
     const zoomImg = document.getElementById('dokunmatik-zoom-img');
     const kapatBtn = document.getElementById('dokunmatik-kapat-btn');
 
-    let isDragging = false;
-    let startX, startY;
-    let translateX = 0, translateY = 0;
-    let currentScale = 1;
+    // Akıllı Dokunmatik Matris Hafızası
+    let ev = {
+        scale: 1, lastScale: 1,
+        transX: 0, transY: 0,
+        lastTransX: 0, lastTransY: 0,
+        maxScale: 5, minScale: 1
+    };
 
-    // Sayfadaki tüm Mobirise galeri elemanlarını yakalama (Baypas Modu)
+    let touchStartDist = 0;
+    let touchStartMid = { x: 0, y: 0 };
+    let isMultiTouch = false;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+
+    // Mobirise Galeri Tetikleyicilerini Yakalama (Baypas)
     document.querySelectorAll('.gallery-image, .item-wrapper, .mbr-gallery img').forEach(eleman => {
         eleman.removeAttribute('data-toggle');
         eleman.removeAttribute('data-bs-toggle');
@@ -667,86 +662,99 @@
         eleman.style.cursor = 'pointer';
 
         eleman.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            
+            e.preventDefault(); e.stopPropagation();
             const asilResim = eleman.tagName === 'IMG' ? eleman : eleman.querySelector('img');
-            
             if (asilResim) {
                 zoomImg.src = asilResim.src;
-                currentScale = 1;
-                translateX = 0;
-                translateY = 0;
-                guncelleMatris();
-                zoomImg.style.cursor = "zoom-in";
+                // Değerleri sıfırla
+                ev.scale = 1; ev.lastScale = 1;
+                ev.transX = 0; ev.transY = 0;
+                ev.lastTransX = 0; ev.lastTransY = 0;
+                guncelleEkran();
                 pencere.style.display = 'flex';
             }
         }, true);
     });
 
-    // Tıklandığında x3 Zoom In / Zoom Out mantığı
-    zoomImg.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (isDragging) return; // Sürüklerken zoom tetiklenmesin
+    const getDistance = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+    const getMiddle = (t1, t2) => ({ x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 });
 
-        if (currentScale > 1) {
-            currentScale = 1;
-            translateX = 0;
-            translateY = 0;
-            zoomImg.style.cursor = "zoom-in";
-        } else {
-            currentScale = 3; // İdeal yakınlaşma oranı
-            zoomImg.style.cursor = "zoom-out";
+    // DOKUNMA BAŞLANGICI
+    zoomImg.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            // İki parmak hareketi başladı (Pinch Zoom)
+            isMultiTouch = true;
+            isDragging = false;
+            touchStartDist = getDistance(e.touches[0], e.touches[1]);
+            touchStartMid = getMiddle(e.touches[0], e.touches[1]);
+            ev.lastScale = ev.scale;
+        } else if (e.touches.length === 1 && ev.scale > 1) {
+            // Tek parmak sürükleme hareketi başladı (Pan)
+            isDragging = true;
+            isMultiTouch = false;
+            startX = e.touches[0].clientX - ev.transX;
+            startY = e.touches[0].clientY - ev.transY;
         }
-        guncelleMatris();
+    }, { passive: false });
+
+    // DOKUNMA ANINDAKİ DİNAMİK HAREKET
+    window.addEventListener('touchmove', (e) => {
+        if (pencere.style.display !== 'flex') return;
+        e.preventDefault();
+
+        if (isMultiTouch && e.touches.length === 2) {
+            // İki parmak açma / kapatma hesabı
+            const currentDist = getDistance(e.touches[0], e.touches[1]);
+            let factor = currentDist / touchStartDist;
+            let targetScale = ev.lastScale * factor;
+
+            // Sınırları koru (1x ile 5x arası)
+            if (targetScale < ev.minScale) targetScale = ev.minScale;
+            if (targetScale > ev.maxScale) targetScale = ev.maxScale;
+
+            ev.scale = targetScale;
+            guncelleEkran();
+        } else if (isDragging && e.touches.length === 1) {
+            // Tek parmakla resmi sağa sola sürükleme
+            ev.transX = e.touches[0].clientX - startX;
+            ev.transY = e.touches[0].clientY - startY;
+            guncelleEkran();
+        }
+    }, { passive: false });
+
+    // DOKUNMA BİTİŞİ
+    window.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+            isMultiTouch = false;
+            isDragging = false;
+            if (ev.scale === 1) {
+                ev.transX = 0;
+                ev.transY = 0;
+                guncelleEkran();
+            }
+        } else if (e.touches.length === 1 && isMultiTouch) {
+            // İki parmaktan teke düşerse sürüklemeye yumuşak geçiş yap
+            isMultiTouch = false;
+            isDragging = true;
+            startX = e.touches[0].clientX - ev.transX;
+            startY = e.touches[0].clientY - ev.transY;
+        }
     });
 
-    // --- SÜRÜKLEME VE DOKUNMATİK KAYDIRMA MOTORU ---
-    const surukleBasla = (e) => {
-        if (currentScale === 1) return; // Resim büyümeden kaydırılmasın
-        isDragging = true;
-        const pointer = e.touches ? e.touches[0] : e;
-        startX = pointer.clientX - translateX;
-        startY = pointer.clientY - translateY;
-        zoomImg.style.transition = 'none'; // Kaydırırken gecikme olmasın
-    };
-
-    const surukleDinamik = (e) => {
-        if (!isDragging) return;
-        e.preventDefault();
-        const pointer = e.touches ? e.touches[0] : e;
-        translateX = pointer.clientX - startX;
-        translateY = pointer.clientY - startY;
-        guncelleMatris();
-    };
-
-    const surukleBitis = () => {
-        if (!isDragging) return;
-        isDragging = false;
-        zoomImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-    };
-
-    // Matris Güncelleme Fonksiyonu
-    function guncelleMatris() {
-        zoomImg.style.transform = `scale(${currentScale}) translate(${translateX / currentScale}px, ${translateY / currentScale}px)`;
+    // Ekranda Görseli Matris ile Güncelleyen Fonksiyon
+    function guncelleEkran() {
+        zoomImg.style.transform = `translate(${ev.transX}px, ${ev.transY}px) scale(${ev.scale})`;
     }
 
-    // Dokunmatik ve mouse olaylarını bağlama
-    zoomImg.addEventListener('mousedown', surukleBasla);
-    window.addEventListener('mousemove', surukleDinamik);
-    window.addEventListener('mouseup', surukleBitis);
-
-    zoomImg.addEventListener('touchstart', surukleBasla, { passive: false });
-    window.addEventListener('touchmove', surukleDinamik, { passive: false });
-    window.addEventListener('touchend', surukleBitis);
-
-    // Geri Dön Butonu işlevi
+    // Geri Dön Butonu
     kapatBtn.addEventListener('click', (e) => { 
-        e.stopPropagation();
-        pencere.style.display = 'none'; 
+        e.stopPropagation(); pencere.style.display = 'none'; 
     });
 </script>
 <!-- DOKUNMATİK EKRAN ZOOM KODU BİTİŞİ -->
+  </body>
+</html>
   </body>
 </html>
   </body>

@@ -593,36 +593,24 @@
 
 <style>
     /* Ana sayfanın dikeyde normal şekilde kaymasını garanti altına alıyoruz */
-    html {
-        overflow-x: hidden !important;
-        overflow-y: auto !important;
-        height: auto !important;
-    }
-    body {
+    html, body {
         overflow-x: hidden !important;
         overflow-y: auto !important;
         height: auto !important;
         position: relative !important;
     }
 
-    /* Mobirise'ın kendi varsayılan modal pencerelerini tamamen engelliyoruz */
     .modal, .modal-backdrop, [data-toggle="modal"], [data-bs-toggle="modal"] { 
         display: none !important; pointer-events: none !important; 
     }
     
-    /* Büyük Görsel Penceresi: Sabit pozisyonla en üst katmanda yer alacak */
+    /* Büyük Görsel Penceresi */
     #dokunmatik-zoom-pencere {
-        position: fixed !important; 
-        top: 0 !important; 
-        left: 0 !important; 
-        width: 100vw !important; 
-        height: 100vh !important;
-        background: #000000 !important; 
-        display: none; 
-        justify-content: center;
-        align-items: center; 
-        z-index: 9999999 !important; 
-        overflow: hidden !important;
+        position: fixed !important; top: 0 !important; left: 0 !important; 
+        width: 100vw !important; height: 100vh !important;
+        background: #000000 !important; display: none; 
+        justify-content: center; align-items: center; 
+        z-index: 9999999 !important; overflow: hidden !important;
         touch-action: none !important;
     }
     .zoom-konteyner {
@@ -678,12 +666,19 @@
     let tumResimler = [];
     let aktifIndeks = 0;
 
-    let ev = { scale: 1, lastScale: 1, transX: 0, transY: 0, maxScale: 5, minScale: 1 };
+    // Durum Kontrol Hafızası
+    let scale = 1;
+    let lastScale = 1;
+    let transX = 0;
+    let transY = 0;
+    let startX = 0;
+    let startY = 0;
     let touchStartDist = 0;
+    
     let isMultiTouch = false;
     let isDragging = false;
-    let startX = 0, startY = 0;
-    let swipeStartX = 0, swipeStartY = 0;
+    let swipeStartX = 0;
+    let swipeStartY = 0;
     let sonDokunmaZamani = 0;
 
     // Resimleri Hafızaya Alma ve Tıklama Yönetimi
@@ -708,7 +703,7 @@
 
     function resimYukle(src) {
         zoomImg.src = src;
-        ev.scale = 1; ev.transX = 0; ev.transY = 0;
+        scale = 1; lastScale = 1; transX = 0; transY = 0;
         zoomImg.style.transition = 'none';
         guncelleEkran();
         oklariGuncelle();
@@ -734,23 +729,24 @@
     btnSag.addEventListener('click', (e) => { e.stopPropagation(); sonrakiResim(); });
     btnSol.addEventListener('click', (e) => { e.stopPropagation(); oncekiResim(); });
 
+    // İki parmak arası mesafe hesaplama fonksiyonu
     const getDistance = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 
-    // Zoom Ekranı Dokunma Başlangıcı
+    // TELEFON DOKUNMA BAŞLANGICI
     zoomImg.addEventListener('touchstart', (e) => {
         e.preventDefault();
         
-        // Çift Tıklama (Double Tap) İle Boyut Sıfırlama Motoru
+        // --- ÇİFT TIKLAMA (DOUBLE TAP) SIFIRLAMA MOTORU ---
         const simdikiZaman = new Date().getTime();
         const zamanFarki = simdikiZaman - sonDokunmaZamani;
         
         if (zamanFarki < 300 && zamanFarki > 0 && e.touches.length === 1) {
-            if (ev.scale > 1) {
-                ev.scale = 1; ev.transX = 0; ev.transY = 0;
+            if (scale > 1) {
+                scale = 1; transX = 0; transY = 0;
             } else {
-                ev.scale = 2.5; ev.transX = 0; ev.transY = 0;
+                scale = 2.5; transX = 0; transY = 0;
             }
-            zoomImg.style.transition = 'transform 0.3s ease-out';
+            zoomImg.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
             guncelleEkran();
             sonDokunmaZamani = 0;
             return;
@@ -758,74 +754,90 @@
         sonDokunmaZamani = simdikiZaman;
 
         if (e.touches.length === 2) {
-            isMultiTouch = true; isDragging = false;
-            touchStartDist = getDistance(e.touches, e.touches);
-            ev.lastScale = ev.scale;
+            // İki parmak hareketi algılandı (Pinch Zoom Başlangıcı)
+            isMultiTouch = true;
+            isDragging = false;
+            touchStartDist = getDistance(e.touches[0], e.touches[1]);
+            lastScale = scale;
             zoomImg.style.transition = 'none';
         } else if (e.touches.length === 1) {
             zoomImg.style.transition = 'none';
-            if (ev.scale > 1) {
-                isDragging = true; isMultiTouch = false;
-                startX = e.touches.clientX - ev.transX;
-                startY = e.touches.clientY - ev.transY;
+            if (scale > 1) {
+                // Resim büyükken tek parmakla resmi kaydırma (Pan)
+                isDragging = true;
+                isMultiTouch = false;
+                startX = e.touches[0].clientX - transX;
+                startY = e.touches[0].clientY - transY;
             } else {
-                isDragging = false; isMultiTouch = false;
-                swipeStartX = e.touches.clientX;
-                swipeStartY = e.touches.clientY;
+                // Resim orijinal boyuttayken sağa-sola parmakla iterek resim değiştirme (Swipe)
+                isDragging = false;
+                isMultiTouch = false;
+                swipeStartX = e.touches[0].clientX;
+                swipeStartY = e.touches[0].clientY;
             }
         }
     }, { passive: false });
 
-    // Dinamik Hareket
+    // PARMAK HAREKET ETTİĞİNDE
     window.addEventListener('touchmove', (e) => {
         if (pencere.style.display !== 'flex') return;
         
         if (isMultiTouch && e.touches.length === 2) {
+            // İKİ PARMAK İLE ANLIK YAKINLAŞTIRMA VE UZAKLAŞTIRMA
             e.preventDefault();
-            const currentDist = getDistance(e.touches, e.touches);
-            let targetScale = ev.lastScale * (currentDist / touchStartDist);
-            if (targetScale < ev.minScale) targetScale = ev.minScale;
-            if (targetScale > ev.maxScale) targetScale = ev.maxScale;
-            ev.scale = targetScale;
+            const currentDist = getDistance(e.touches[0], e.touches[1]);
+            let targetScale = lastScale * (currentDist / touchStartDist);
+
+            if (targetScale < 1) targetScale = 1;
+            if (targetScale > 5) targetScale = 5;
+
+            scale = targetScale;
             guncelleEkran();
-        } else if (isDragging && e.touches.length === 1 && ev.scale > 1) {
+        } else if (isDragging && e.touches.length === 1 && scale > 1) {
+            // BÜYÜTÜLMÜŞ RESMİN İÇİNDE GEZİNME
             e.preventDefault();
-            ev.transX = e.touches.clientX - startX;
-            ev.transY = e.touches.clientY - startY;
+            transX = e.touches[0].clientX - startX;
+            transY = e.touches[0].clientY - startY;
             guncelleEkran();
         }
     }, { passive: false });
 
-    // Dokunma Bitişi
+    // PARMAK EKRANDAN ÇEKİLDİĞİNDE
     window.addEventListener('touchend', (e) => {
         if (pencere.style.display !== 'flex') return;
 
         if (e.touches.length === 0) {
-            if (ev.scale === 1 && swipeStartX !== 0 && e.changedTouches && e.changedTouches.length > 0) {
-                const diffX = e.changedTouches.clientX - swipeStartX;
-                const diffY = e.changedTouches.clientY - swipeStartY;
-                if (Math.abs(diffX) > 50 && Math.abs(diffY) < 80) {
+            // SAĞA VEYA SOLA PARMAKLA İTEREK İLERLEME (SWIPE HESAPLAMASI)
+            if (scale === 1 && swipeStartX !== 0 && e.changedTouches && e.changedTouches.length > 0) {
+                const diffX = e.changedTouches[0].clientX - swipeStartX;
+                const diffY = e.changedTouches[0].clientY - swipeStartY;
+
+                // Yatay hareket dikey hareketten fazlaysa resim değiştir
+                if (Math.abs(diffX) > 60 && Math.abs(diffY) < 80) {
                     if (diffX > 0) { oncekiResim(); } else { sonrakiResim(); }
                 }
             }
-            isMultiTouch = false; isDragging = false; swipeStartX = 0;
-            if (ev.scale <= 1) {
-                ev.scale = 1; ev.transX = 0; ev.transY = 0; 
+            isMultiTouch = false;
+            isDragging = false;
+            swipeStartX = 0;
+            
+            if (scale <= 1) {
+                scale = 1; transX = 0; transY = 0; 
                 zoomImg.style.transition = 'transform 0.2s ease-out';
                 guncelleEkran();
             }
         } else if (e.touches.length === 1) {
             isMultiTouch = false;
-            if (ev.scale > 1) {
+            if (scale > 1) {
                 isDragging = true;
-                startX = e.touches.clientX - ev.transX;
-                startY = e.touches.clientY - ev.transY;
+                startX = e.touches[0].clientX - transX;
+                startY = e.touches[0].clientY - transY;
             }
         }
     });
 
     function guncelleEkran() {
-        zoomImg.style.transform = `translate(${ev.transX}px, ${ev.transY}px) scale(${ev.scale})`;
+        zoomImg.style.transform = `translate(${transX}px, ${transY}px) scale(${scale})`;
     }
 
     kapatBtn.addEventListener('click', (e) => { 
@@ -836,3 +848,4 @@
 <!-- DOKUNMATİK EKRAN ZOOM KODU BİTİŞİ -->
   </body>
 </html>
+

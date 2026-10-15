@@ -587,6 +587,7 @@
     </div>
 </section><section class="display-7" style="padding: 0;align-items: center;justify-content: center;flex-wrap: wrap;    align-content: center;display: flex;position: relative;height: 4rem;"><a href="https://mobiri.se/" style="flex: 1 1;height: 4rem;position: absolute;width: 100%;z-index: 1;"><img alt="" style="height: 4rem;" src="data:image/gif;base64,R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="></a><p style="margin: 0;text-align: center;" class="display-7">&#8204;</p><a style="z-index:1" href="https://mobirise.com/builder/ai-website-maker.html">Best AI Website Maker</a></section><script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>  <script src="assets/smoothscroll/smooth-scroll.js"></script>  <script src="assets/ytplayer/index.js"></script>  <script src="assets/theme/js/script.js"></script>  
     <input name="animation" type="hidden">
+
 <!-- DOKUNMATİK EKRAN DEEP-ZOOM SİSTEMİ BAŞLANGICI -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
@@ -619,16 +620,38 @@
         position: absolute;
         will-change: transform;
     }
+    
+    /* Küçültülmüş ve Kibar Geri Dön Butonu */
     #dokunmatik-kapat-btn {
-        position: fixed; top: 25px; left: 25px; padding: 15px 35px;
-        background: #ff4757; color: white; border: none; border-radius: 50px;
-        font-size: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-        z-index: 1000000 !important;
+        position: fixed; top: 20px; left: 20px; padding: 10px 20px;
+        background: rgba(255, 71, 87, 0.85); color: white; border: none; border-radius: 20px;
+        font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        z-index: 1000000 !important; transition: background 0.2s;
     }
+    #dokunmatik-kapat-btn:active { background: #ff4757; }
+
+    /* Yarı Şeffaf (Opak) İleri ve Geri Navigasyon Okları */
+    .nav-ok {
+        position: fixed; top: 50%; transform: translateY(-50%);
+        width: 60px; height: 60px; background: rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 50%; font-size: 28px; font-weight: bold;
+        display: flex; justify-content: center; align-items: center;
+        cursor: pointer; z-index: 1000000 !important;
+        user-select: none; transition: background 0.2s, color 0.2s;
+    }
+    .nav-ok:active {
+        background: rgba(255, 255, 255, 0.4);
+        color: #ffffff;
+    }
+    #nav-sol { left: 20px; }
+    #nav-sag { right: 20px; }
 </style>
 
 <div id="dokunmatik-zoom-pencere">
-    <button id="dokunmatik-kapat-btn">⬅ GERİ DÖN</button>
+    <button id="dokunmatik-kapat-btn">⬅ Geri</button>
+    <button id="nav-sol" class="nav-ok">‹</button>
+    <button id="nav-sag" class="nav-ok">›</button>
     <div class="zoom-konteyner">
         <img id="dokunmatik-zoom-img" src="" alt="Zoom Image">
     </div>
@@ -638,6 +661,12 @@
     const pencere = document.getElementById('dokunmatik-zoom-pencere');
     const zoomImg = document.getElementById('dokunmatik-zoom-img');
     const kapatBtn = document.getElementById('dokunmatik-kapat-btn');
+    const btnSol = document.getElementById('nav-sol');
+    const btnSag = document.getElementById('nav-sag');
+
+    // Sayfadaki resimlerin yollarını dinamik olarak hafızaya alacak dizi
+    let tumResimler = [];
+    let aktifIndeks = 0;
 
     // Akıllı Dokunmatik Matris Hafızası
     let ev = {
@@ -648,53 +677,86 @@
     };
 
     let touchStartDist = 0;
-    let touchStartMid = { x: 0, y: 0 };
     let isMultiTouch = false;
     let isDragging = false;
     let startX = 0, startY = 0;
+    
+    // Sağa/Sola Kaydırma (Swipe) Hafızası
+    let swipeStartX = 0;
+    let swipeStartY = 0;
 
-    // Mobirise Galeri Tetikleyicilerini Yakalama (Baypas)
-    document.querySelectorAll('.gallery-image, .item-wrapper, .mbr-gallery img').forEach(eleman => {
-        eleman.removeAttribute('data-toggle');
-        eleman.removeAttribute('data-bs-toggle');
-        eleman.removeAttribute('data-target');
-        eleman.removeAttribute('data-bs-target');
-        eleman.style.cursor = 'pointer';
+    // Mobirise Galeri Tetikleyicilerini Yakalama ve Listeyi Doldurma
+    const galeriResimleri = document.querySelectorAll('.gallery-image img, .item-wrapper img, .mbr-gallery img');
+    galeriResimleri.forEach((img, indeks) => {
+        tumResimler.push(img.src);
+        
+        const kapsayici = img.closest('.item-wrapper') || img.closest('.gallery-image') || img;
+        kapsayici.removeAttribute('data-toggle');
+        kapsayici.removeAttribute('data-bs-toggle');
+        kapsayici.removeAttribute('data-target');
+        kapsayici.removeAttribute('data-bs-target');
+        kapsayici.style.cursor = 'pointer';
 
-        eleman.addEventListener('click', (e) => {
+        kapsayici.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
-            const asilResim = eleman.tagName === 'IMG' ? eleman : eleman.querySelector('img');
-            if (asilResim) {
-                zoomImg.src = asilResim.src;
-                // Değerleri sıfırla
-                ev.scale = 1; ev.lastScale = 1;
-                ev.transX = 0; ev.transY = 0;
-                ev.lastTransX = 0; ev.lastTransY = 0;
-                guncelleEkran();
-                pencere.style.display = 'flex';
-            }
+            aktifIndeks = indeks;
+            resimYukle(tumResimler[aktifIndeks]);
+            pencere.style.display = 'flex';
         }, true);
     });
 
+    function resimYukle(src) {
+        zoomImg.src = src;
+        ev.scale = 1; ev.lastScale = 1;
+        ev.transX = 0; ev.transY = 0;
+        ev.lastTransX = 0; ev.lastTransY = 0;
+        guncelleEkran();
+        oklariGuncelle();
+    }
+
+    function oklariGuncelle() {
+        btnSol.style.display = aktifIndeks === 0 ? 'none' : 'flex';
+        btnSag.style.display = aktifIndeks === tumResimler.length - 1 ? 'none' : 'flex';
+    }
+
+    function sonrakiResim() {
+        if (aktifIndeks < tumResimler.length - 1) {
+            aktifIndeks++;
+            resimYukle(tumResimler[aktifIndeks]);
+        }
+    }
+
+    function oncekiResim() {
+        if (aktifIndeks > 0) {
+            aktifIndeks--;
+            resimYukle(tumResimler[aktifIndeks]);
+        }
+    }
+
+    btnSag.addEventListener('click', (e) => { e.stopPropagation(); sonrakiResim(); });
+    btnSol.addEventListener('click', (e) => { e.stopPropagation(); oncekiResim(); });
+
     const getDistance = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-    const getMiddle = (t1, t2) => ({ x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 });
 
     // DOKUNMA BAŞLANGICI
     zoomImg.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
-            // İki parmak hareketi başladı (Pinch Zoom)
             isMultiTouch = true;
             isDragging = false;
             touchStartDist = getDistance(e.touches[0], e.touches[1]);
-            touchStartMid = getMiddle(e.touches[0], e.touches[1]);
             ev.lastScale = ev.scale;
-        } else if (e.touches.length === 1 && ev.scale > 1) {
-            // Tek parmak sürükleme hareketi başladı (Pan)
-            isDragging = true;
-            isMultiTouch = false;
-            startX = e.touches[0].clientX - ev.transX;
-            startY = e.touches[0].clientY - ev.transY;
+        } else if (e.touches.length === 1) {
+            if (ev.scale > 1) {
+                isDragging = true;
+                isMultiTouch = false;
+                startX = e.touches[0].clientX - ev.transX;
+                startY = e.touches[0].clientY - ev.transY;
+            } else {
+                // Resim orijinal boyuttayken swipe takibi başlat
+                swipeStartX = e.touches[0].clientX;
+                swipeStartY = e.touches[0].clientY;
+            }
         }
     }, { passive: false });
 
@@ -704,37 +766,47 @@
         e.preventDefault();
 
         if (isMultiTouch && e.touches.length === 2) {
-            // İki parmak açma / kapatma hesabı
             const currentDist = getDistance(e.touches[0], e.touches[1]);
             let factor = currentDist / touchStartDist;
             let targetScale = ev.lastScale * factor;
 
-            // Sınırları koru (1x ile 5x arası)
             if (targetScale < ev.minScale) targetScale = ev.minScale;
             if (targetScale > ev.maxScale) targetScale = ev.maxScale;
 
             ev.scale = targetScale;
             guncelleEkran();
-        } else if (isDragging && e.touches.length === 1) {
-            // Tek parmakla resmi sağa sola sürükleme
+        } else if (isDragging && e.touches.length === 1 && ev.scale > 1) {
             ev.transX = e.touches[0].clientX - startX;
             ev.transY = e.touches[0].clientY - startY;
             guncelleEkran();
         }
     }, { passive: false });
 
-    // DOKUNMA BİTİŞİ
+    // DOKUNMA BİTİŞİ (SWIPE KONTROLÜ)
     window.addEventListener('touchend', (e) => {
         if (e.touches.length === 0) {
+            // Eğer resim büyütülmemişse ve tek parmak çekildiyse swipe kontrolü yap
+            if (ev.scale === 1 && swipeStartX !== 0) {
+                const diffX = e.changedTouches[0].clientX - swipeStartX;
+                const diffY = e.changedTouches[0].clientY - swipeStartY;
+
+                // Yatay eksende yeterli kaydırma yapıldıysa ve dikey hareket azsa
+                if (Math.abs(diffX) > 60 && Math.abs(diffY) < 100) {
+                    if (diffX > 0) {
+                        oncekiResim(); // Sağa çekerse önceki resim
+                    } else {
+                        sonrakiResim(); // Sola çekerse sonraki resim
+                    }
+                }
+            }
             isMultiTouch = false;
             isDragging = false;
+            swipeStartX = 0;
             if (ev.scale === 1) {
-                ev.transX = 0;
-                ev.transY = 0;
+                ev.transX = 0; ev.transY = 0;
                 guncelleEkran();
             }
         } else if (e.touches.length === 1 && isMultiTouch) {
-            // İki parmaktan teke düşerse sürüklemeye yumuşak geçiş yap
             isMultiTouch = false;
             isDragging = true;
             startX = e.touches[0].clientX - ev.transX;
@@ -742,12 +814,10 @@
         }
     });
 
-    // Ekranda Görseli Matris ile Güncelleyen Fonksiyon
     function guncelleEkran() {
         zoomImg.style.transform = `translate(${ev.transX}px, ${ev.transY}px) scale(${ev.scale})`;
     }
 
-    // Geri Dön Butonu
     kapatBtn.addEventListener('click', (e) => { 
         e.stopPropagation(); pencere.style.display = 'none'; 
     });

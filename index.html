@@ -592,7 +592,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
 <style>
-    /* Kiosk koruması: Tüm sayfanın kaymasını engeller */
+    /* Kiosk ve Mobil Kilidi */
     html, body {
         position: fixed; width: 100%; height: 100%;
         overflow: hidden !important; touch-action: none;
@@ -628,21 +628,16 @@
         font-size: 14px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         z-index: 1000000 !important; transition: background 0.2s;
     }
-    #dokunmatik-kapat-btn:active { background: #ff4757; }
 
     /* Yarı Şeffaf (Opak) İleri ve Geri Navigasyon Okları */
     .nav-ok {
         position: fixed; top: 50%; transform: translateY(-50%);
-        width: 60px; height: 60px; background: rgba(255, 255, 255, 0.15);
-        color: rgba(255, 255, 255, 0.7); border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 50%; font-size: 28px; font-weight: bold;
+        width: 50px; height: 50px; background: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.8); border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%; font-size: 24px; font-weight: bold;
         display: flex; justify-content: center; align-items: center;
         cursor: pointer; z-index: 1000000 !important;
-        user-select: none; transition: background 0.2s, color 0.2s;
-    }
-    .nav-ok:active {
-        background: rgba(255, 255, 255, 0.4);
-        color: #ffffff;
+        user-select: none;
     }
     #nav-sol { left: 20px; }
     #nav-sag { right: 20px; }
@@ -664,42 +659,31 @@
     const btnSol = document.getElementById('nav-sol');
     const btnSag = document.getElementById('nav-sag');
 
-    // Sayfadaki resimlerin yollarını dinamik olarak hafızaya alacak dizi
     let tumResimler = [];
     let aktifIndeks = 0;
 
-    // Akıllı Dokunmatik Matris Hafızası
-    let ev = {
-        scale: 1, lastScale: 1,
-        transX: 0, transY: 0,
-        lastTransX: 0, lastTransY: 0,
-        maxScale: 5, minScale: 1
-    };
-
+    let ev = { scale: 1, lastScale: 1, transX: 0, transY: 0, maxScale: 5, minScale: 1 };
     let touchStartDist = 0;
     let isMultiTouch = false;
     let isDragging = false;
     let startX = 0, startY = 0;
-    
-    // Sağa/Sola Kaydırma (Swipe) Hafızası
-    let swipeStartX = 0;
-    let swipeStartY = 0;
+    let swipeStartX = 0, swipeStartY = 0;
 
-    // Mobirise Galeri Tetikleyicilerini Yakalama ve Listeyi Doldurma
-    const galeriResimleri = document.querySelectorAll('.gallery-image img, .item-wrapper img, .mbr-gallery img');
-    galeriResimleri.forEach((img, indeks) => {
-        tumResimler.push(img.src);
+    // Mobirise Elemanlarını Hafızaya Alma ve Dinamik Liste Oluşturma
+    document.querySelectorAll('.gallery-image img, .item-wrapper img, .mbr-gallery img').forEach((img, indeks) => {
+        if (!tumResimler.includes(img.src)) {
+            tumResimler.push(img.src);
+        }
         
         const kapsayici = img.closest('.item-wrapper') || img.closest('.gallery-image') || img;
         kapsayici.removeAttribute('data-toggle');
         kapsayici.removeAttribute('data-bs-toggle');
         kapsayici.removeAttribute('data-target');
         kapsayici.removeAttribute('data-bs-target');
-        kapsayici.style.cursor = 'pointer';
 
         kapsayici.addEventListener('click', (e) => {
             e.preventDefault(); e.stopPropagation();
-            aktifIndeks = indeks;
+            aktifIndeks = tumResimler.indexOf(img.src);
             resimYukle(tumResimler[aktifIndeks]);
             pencere.style.display = 'flex';
         }, true);
@@ -707,9 +691,7 @@
 
     function resimYukle(src) {
         zoomImg.src = src;
-        ev.scale = 1; ev.lastScale = 1;
-        ev.transX = 0; ev.transY = 0;
-        ev.lastTransX = 0; ev.lastTransY = 0;
+        ev.scale = 1; ev.transX = 0; ev.transY = 0;
         guncelleEkran();
         oklariGuncelle();
     }
@@ -721,15 +703,13 @@
 
     function sonrakiResim() {
         if (aktifIndeks < tumResimler.length - 1) {
-            aktifIndeks++;
-            resimYukle(tumResimler[aktifIndeks]);
+            aktifIndeks++; resimYukle(tumResimler[aktifIndeks]);
         }
     }
 
     function oncekiResim() {
         if (aktifIndeks > 0) {
-            aktifIndeks--;
-            resimYukle(tumResimler[aktifIndeks]);
+            aktifIndeks--; resimYukle(tumResimler[aktifIndeks]);
         }
     }
 
@@ -738,37 +718,40 @@
 
     const getDistance = (t1, t2) => Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
 
-    // DOKUNMA BAŞLANGICI
+    // TELEFON DOKUNMA BAŞLANGICI
     zoomImg.addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (e.touches.length === 2) {
+            // İki parmak zoom algılaması
             isMultiTouch = true;
             isDragging = false;
             touchStartDist = getDistance(e.touches[0], e.touches[1]);
             ev.lastScale = ev.scale;
         } else if (e.touches.length === 1) {
             if (ev.scale > 1) {
+                // Yakınlaşmışken tek parmak sürükleme algılaması
                 isDragging = true;
                 isMultiTouch = false;
                 startX = e.touches[0].clientX - ev.transX;
                 startY = e.touches[0].clientY - ev.transY;
             } else {
-                // Resim orijinal boyuttayken swipe takibi başlat
+                // Orijinal boyuttayken sağa-sola kaydırma algılaması
+                isDragging = false;
+                isMultiTouch = false;
                 swipeStartX = e.touches[0].clientX;
                 swipeStartY = e.touches[0].clientY;
             }
         }
     }, { passive: false });
 
-    // DOKUNMA ANINDAKİ DİNAMİK HAREKET
+    // HAREKET ANINDAKİ HESAPLAMALAR
     window.addEventListener('touchmove', (e) => {
         if (pencere.style.display !== 'flex') return;
-        e.preventDefault();
-
+        
         if (isMultiTouch && e.touches.length === 2) {
+            e.preventDefault();
             const currentDist = getDistance(e.touches[0], e.touches[1]);
-            let factor = currentDist / touchStartDist;
-            let targetScale = ev.lastScale * factor;
+            let targetScale = ev.lastScale * (currentDist / touchStartDist);
 
             if (targetScale < ev.minScale) targetScale = ev.minScale;
             if (targetScale > ev.maxScale) targetScale = ev.maxScale;
@@ -776,41 +759,42 @@
             ev.scale = targetScale;
             guncelleEkran();
         } else if (isDragging && e.touches.length === 1 && ev.scale > 1) {
+            e.preventDefault();
             ev.transX = e.touches[0].clientX - startX;
             ev.transY = e.touches[0].clientY - startY;
             guncelleEkran();
         }
     }, { passive: false });
 
-    // DOKUNMA BİTİŞİ (SWIPE KONTROLÜ)
+    // PARMAK EKRANDAN ÇEKİLDİĞİNDE
     window.addEventListener('touchend', (e) => {
+        if (pencere.style.display !== 'flex') return;
+
         if (e.touches.length === 0) {
-            // Eğer resim büyütülmemişse ve tek parmak çekildiyse swipe kontrolü yap
-            if (ev.scale === 1 && swipeStartX !== 0) {
+            // Sağa Sola İlerletme (Swipe) Kontrolü
+            if (ev.scale === 1 && swipeStartX !== 0 && e.changedTouches && e.changedTouches.length > 0) {
                 const diffX = e.changedTouches[0].clientX - swipeStartX;
                 const diffY = e.changedTouches[0].clientY - swipeStartY;
 
-                // Yatay eksende yeterli kaydırma yapıldıysa ve dikey hareket azsa
-                if (Math.abs(diffX) > 60 && Math.abs(diffY) < 100) {
-                    if (diffX > 0) {
-                        oncekiResim(); // Sağa çekerse önceki resim
-                    } else {
-                        sonrakiResim(); // Sola çekerse sonraki resim
-                    }
+                if (Math.abs(diffX) > 50 && Math.abs(diffY) < 80) {
+                    if (diffX > 0) { oncekiResim(); } else { sonrakiResim(); }
                 }
             }
             isMultiTouch = false;
             isDragging = false;
             swipeStartX = 0;
-            if (ev.scale === 1) {
-                ev.transX = 0; ev.transY = 0;
+            
+            if (ev.scale <= 1) {
+                ev.scale = 1; ev.transX = 0; ev.transY = 0;
                 guncelleEkran();
             }
-        } else if (e.touches.length === 1 && isMultiTouch) {
+        } else if (e.touches.length === 1) {
             isMultiTouch = false;
-            isDragging = true;
-            startX = e.touches[0].clientX - ev.transX;
-            startY = e.touches[0].clientY - ev.transY;
+            if (ev.scale > 1) {
+                isDragging = true;
+                startX = e.touches[0].clientX - ev.transX;
+                startY = e.touches[0].clientY - ev.transY;
+            }
         }
     });
 
@@ -823,6 +807,8 @@
     });
 </script>
 <!-- DOKUNMATİK EKRAN ZOOM KODU BİTİŞİ -->
+  </body>
+</html>
   </body>
 </html>
   </body>

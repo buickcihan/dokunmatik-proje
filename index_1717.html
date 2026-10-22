@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kiosk & Sergi Yöneticisi (CMS)</title>
+  
+  <!-- Swiper CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- JSZip & FileSaver Kütüphaneleri -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    :root {
+      --bg-dark: #090b0e;
+      --card-bg: rgba(255, 255, 255, 0.04);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+      --danger: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --panel-bg: #11151c;
+      --input-bg: #1a202c;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      color: white;
+    }
+    .btn-primary { background: var(--primary); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-secondary { background: rgba(255, 255, 255, 0.08); border-color: var(--card-border); color: var(--text-main); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+    .btn-danger { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border-color: rgba(239, 68, 68, 0.3); }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.4); }
+
+    #mode-container {
+      width: 100%;
+      height: 100vh;
+      position: relative;
+    }
+
+    /* KIOSK SERGİ EKRANI */
+    #kiosk-mode {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 1;
+      background: var(--bg-dark);
+    }
+
+    header.kiosk-header {
+      padding: 1.5rem 3rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(9, 11, 14, 0.85);
+      backdrop-filter: blur(20px);
+      z-index: 10;
+    }
+
+    .kiosk-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      color: var(--text-main);
+    }
+
+    .admin-switch-btn {
+      opacity: 0.4;
+      transition: opacity 0.3s ease;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      color: var(--text-main);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .admin-switch-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+
+    .kiosk-content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kiosk-page {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      padding: 3rem;
+      overflow-y: auto;
+    }
+
+    .kiosk-page.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    #kiosk-home-grid {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5rem;
+      height: 100%;
+      flex-wrap: wrap;
+    }
+
+    .kiosk-category-card {
+      width: 420px;
+      height: 520px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 2.5rem;
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+
+    .kiosk-category-card-bg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.4;
+      transition: all 0.4s ease;
+      z-index: 0;
+    }
+
+    .kiosk-category-card:hover .kiosk-category-card-bg {
+      opacity: 0.6;
+      transform: scale(1.05);
+    }
+
+    .kiosk-category-card-content {
+      position: relative;
+      z-index: 1;
+      background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 70%, transparent 100%);
+      margin: -2.5rem;
+      padding: 2.5rem;
+      padding-top: 4rem;
+    }
+
+    .kiosk-category-card:active {
+      transform: scale(0.96);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .kiosk-category-card h2 {
+      font-size: 2.2rem;
+      font-weight: 800;
+      margin-bottom: 0.4rem;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .kiosk-category-card p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.4;
+    }
+
+    .badge-count {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      background: rgba(59, 130, 246, 0.3);
+      color: #93c5fd;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      width: fit-content;
+      backdrop-filter: blur(8px);
+    }
+
+    .kiosk-gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 2.5rem;
+      max-width: 1500px;
+      margin: 0 auto;
+      padding-bottom: 4rem;
+    }
+
+    .kiosk-thumb-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 1.2rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+    }
+
+    .kiosk-thumb-card:active {
+      transform: scale(0.95);
+    }
+
+    .kiosk-thumb-media-wrapper {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 3/4;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #1a202c;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.6);
+    }
+
+    .kiosk-thumb-media-wrapper img, .kiosk-thumb-media-wrapper video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .video-play-badge {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 56px; height: 56px;
+      background: rgba(0,0,0,0.65);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      color: white;
+      pointer-events: none;
+    }
+
+    .kiosk-thumb-info {
+      text-align: center;
+    }
+    .kiosk-thumb-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #e2e8f0;
+      word-break: break-word;
+      line-height: 1.3;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60vh;
+      color: var(--text-muted);
+      text-align: center;
+      gap: 1rem;
+    }
+    .empty-state i {
+      width: 64px;
+      height: 64px;
+      opacity: 0.3;
+    }
+
+    .modal-lightbox {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.96);
+      backdrop-filter: blur(25px);
+      z-index: 200;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .modal-lightbox.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .close-lightbox-btn {
+      position: absolute;
+      top: 2.5rem;
+      right: 2.5rem;
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: #fff;
+      font-size: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 201;
+      transition: all 0.2s ease;
+    }
+
+    .close-lightbox-btn:active {
+      transform: scale(0.9);
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .swiper { width: 100%; height: 100%; }
+
+    .swiper-slide {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    .swiper-zoom-container img, .swiper-slide video {
+      max-width: 85vw;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 12px;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.9);
+    }
+
+    .slide-caption {
+      margin-top: 1.5rem;
+      text-align: center;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 1rem 2rem;
+      border-radius: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+    }
+    .slide-caption h3 { font-size: 1.3rem; font-weight: 700; color: #fff; }
+
+    /* YÖNETİM PANELİ (ADMIN) */
+    #admin-mode {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      position: absolute;
+      top: 0; left: 0;
+      z-index: 2;
+      background: var(--panel-bg);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease;
+    }
+
+    #admin-mode.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .admin-sidebar {
+      width: 320px;
+      background: rgba(0, 0, 0, 0.3);
+      border-right: 1px solid var(--card-border);
+      display: flex;
+      flex-direction: column;
+      padding: 2rem 1.5rem;
+    }
+
+    .admin-logo {
+      font-size: 1.25rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 2rem;
+      color: var(--primary);
+    }
+
+    .admin-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .admin-nav-item {
+      padding: 1rem 1.25rem;
+      border-radius: 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--text-muted);
+      font-weight: 600;
+      transition: all 0.2s ease;
+      background: transparent;
+      border: 1px solid transparent;
+    }
+
+    .admin-nav-item:hover {
+      background: rgba(255,255,255,0.04);
+      color: var(--text-main);
+    }
+
+    .admin-nav-item.active {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: var(--primary);
+    }
+
+    .admin-nav-item .nav-title {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .admin-footer-btn {
+      margin-top: auto;
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--card-border);
+    }
+
+    .admin-workspace {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      padding: 3rem;
+    }
+
+    .admin-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2.5rem;
+    }
+
+    .admin-header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .form-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .form-card h3 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-main);
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .form-control {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border 0.2s ease;
+    }
+
+    .form-control:focus {
+      border-color: var(--primary);
+    }
+
+    .upload-zone {
+      border: 2px dashed rgba(255,255,255,0.15);
+      border-radius: 16px;
+      padding: 2.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: rgba(0,0,0,0.2);
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    .upload-zone i {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .items-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .admin-item-card {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .admin-item-media {
+      width: 100%;
+      height: 220px;
+      object-fit: cover;
+      background: #000;
+    }
+
+    .admin-item-details {
+      padding: 1rem;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .admin-item-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    /* YÜKLEME VE DIŞA AKTARMA İLERLEME SÜRECİ (PROGRESS BAR MODAL) */
+    .progress-modal {
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(15px);
+      z-index: 300;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .progress-modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .progress-card {
+      background: #11151c;
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 2.5rem 3rem;
+      width: 90%;
+      max-width: 480px;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.8);
+    }
+
+    .progress-card h4 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text-main);
+    }
+
+    .progress-card p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      word-break: break-all;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      border-radius: 10px;
+      transition: width 0.15s ease-out;
+    }
+
+    .progress-percentage {
+      margin-top: 1rem;
+      font-size: 1rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      padding: 1rem 1.75rem;
+      background: #1e293b;
+      border: 1px solid var(--primary);
+      color: white;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+      pointer-events: none;
+    }
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="mode-container">
+    
+    <!-- KIOSK SERGİ EKRANI -->
+    <div id="kiosk-mode">
+      <header class="kiosk-header">
+        <div class="kiosk-title">
+          <i data-lucide="layers" style="color: var(--primary);"></i>
+          <span id="txt-kiosk-title">Dijital Arşiv & Kiosk</span>
+        </div>
+
+        <button class="btn btn-secondary" id="kiosk-back-btn" style="display:none;" onclick="kioskNavHome()">
+          <i data-lucide="arrow-left"></i> <span id="txt-btn-back">Ana Sayfaya Dön</span>
+        </button>
+
+        <button class="admin-switch-btn" onclick="toggleAdminMode(true)">
+          <i data-lucide="settings"></i> <span id="txt-btn-admin">Yönetim Paneli</span>
+        </button>
+      </header>
+
+      <div class="kiosk-content">
+        <!-- ANA SAYFA -->
+        <div id="kiosk-page-home" class="kiosk-page active">
+          <div id="kiosk-home-grid"></div>
+        </div>
+
+        <!-- GALERİ SAYFASI -->
+        <div id="kiosk-page-gallery" class="kiosk-page">
+          <div id="kiosk-gallery-grid" class="kiosk-gallery-grid"></div>
+          <div id="kiosk-empty-state" class="empty-state" style="display: none;">
+            <i data-lucide="folder-open"></i>
+            <h2 id="txt-empty-title">Bu Alanda Henüz İçerik Bulunmuyor</h2>
+            <p id="txt-empty-sub">Yönetim panelinden yeni dosya yükleyebilirsiniz.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIGHTBOX / SWIPER MODAL -->
+    <div class="modal-lightbox" id="kioskLightbox">
+      <button class="close-lightbox-btn" onclick="closeLightbox()">✕</button>
+      <div class="swiper mySwiper">
+        <div class="swiper-wrapper" id="swiperWrapper"></div>
+      </div>
+    </div>
+
+    <!-- YÖNETİM PANELİ (CMS) -->
+    <div id="admin-mode">
+      <aside class="admin-sidebar">
+        <div class="admin-logo">
+          <i data-lucide="layout-dashboard"></i>
+          <span>CMS Yönetici Paneli</span>
+        </div>
+
+        <div class="admin-nav">
+          <div id="adminCategoryNav" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+          
+          <div style="margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1rem;">
+            <div class="admin-nav-item" id="nav-item-settings" onclick="selectAdminTab('settings')">
+              <div class="nav-title">
+                <i data-lucide="palette"></i>
+                <span>Arayüz & Tema Ayarları</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="admin-footer-btn">
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="openNewCategoryModal()">
+            <i data-lucide="plus-circle"></i> Yeni Alan Oluştur
+          </button>
+          <button class="btn btn-secondary" style="width: 100%; justify-content: center; margin-top: 0.75rem;" onclick="toggleAdminMode(false)">
+            <i data-lucide="monitor"></i> Sergi Moduna Geç
+          </button>
+        </div>
+      </aside>
+
+      <main class="admin-workspace">
+        <!-- KATEGORİ YÖNETİMİ SEKMESİ -->
+        <div id="admin-tab-category">
+          <div class="admin-header">
+            <div>
+              <h1 id="adminCurrentCatTitle">Dergiler</h1>
+              <p style="color: var(--text-muted); margin-top: 0.25rem;" id="adminCurrentCatSub">Fotoğraf veya MP4 Video Yükleyin ve Yönetin</p>
+            </div>
+            <button class="btn btn-danger" onclick="deleteCurrentCategory()">
+              <i data-lucide="trash-2"></i> Alanı Sil
+            </button>
+          </div>
+
+          <!-- Kategori İsim ve Açıklama Düzenleme Formu -->
+          <div class="form-card">
+            <h3><i data-lucide="edit-3" style="color: var(--primary);"></i> Alan Başlığı ve Açıklaması</h3>
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Alan Başlığı (Kart Üzerinde Görünür)</label>
+                <input type="text" id="editCatTitle" class="form-control" onchange="saveCurrentCategoryMeta()">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Alt Açıklama Metni</label>
+                <input type="text" id="editCatSubtitle" class="form-control" onchange="saveCurrentCategoryMeta()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Yükleme Formu -->
+          <div class="form-card">
+            <h3><i data-lucide="upload-cloud" style="color: var(--primary);"></i> Yeni Medya Ekle (Görsel veya MP4)</h3>
+            
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+              <i data-lucide="file-up"></i>
+              <p style="font-weight: 600; margin-bottom: 0.25rem;">Fotoğraf veya MP4 Video Seçin / Sürükleyin</p>
+              <p style="font-size: 0.85rem; color: var(--text-muted);">PNG, JPG, WEBP, MP4 desteklenir</p>
+              <input type="file" id="fileInput" accept="image/*,video/mp4,video/webm" multiple style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+
+            <div style="text-align: center; margin: 1.25rem 0; color: var(--text-muted); font-size: 0.85rem;">VEYA DİREKT URL GİRİN</div>
+
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Medya Başlığı / Adı</label>
+                <input type="text" id="inputItemTitle" class="form-control" placeholder="Örn: Tanıtım Filmi">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Görsel veya Video Bağlantısı (URL)</label>
+                <input type="text" id="inputItemUrl" class="form-control" placeholder="https://... (.mp4 veya görsel linki)">
+              </div>
+            </div>
+
+            <button class="btn btn-primary" onclick="addUrlItem()">
+              <i data-lucide="plus"></i> URL ile Ekle
+            </button>
+          </div>
+
+          <!-- İçerik Listesi -->
+          <div class="form-card">
+            <h3><i data-lucide="grid" style="color: var(--primary);"></i> Yüklü Dosyalar (<span id="itemCount">0</span>)</h3>
+            <div class="items-grid" id="adminItemsGrid"></div>
+          </div>
+        </div>
+
+        <!-- ARAYÜZ VE TEMA AYARLARI SEKMESİ -->
+        <div id="admin-tab-settings" style="display: none;">
+          <div class="admin-header">
+            <div>
+              <h1>Arayüz Metinleri ve Renk Ayarları</h1>
+              <p style="color: var(--text-muted); margin-top: 0.25rem;">Kiosk ekranında görünen tüm metinleri ve renk paletini özelleştirin</p>
+            </div>
+            <div style="display: flex; gap: 0.75rem;">
+              <button class="btn btn-secondary" onclick="exportZipPackage()">
+                <i data-lucide="download"></i> Projeyi Dışa Aktar (ZIP Paketi)
+              </button>
+              <button class="btn btn-primary" onclick="saveSettings()">
+                <i data-lucide="save"></i> Ayarları Kaydet
+              </button>
+            </div>
+          </div>
+
+          <!-- Şifre Değiştirme -->
+          <div class="form-card">
+            <h3><i data-lucide="lock" style="color: var(--primary);"></i> Güvenlik / Yönetici Şifresi</h3>
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Yönetim Paneline Giriş Şifresi</label>
+                <input type="text" id="cfg-admin-password" class="form-control" placeholder="Varsayılan: 1234">
+              </div>
+            </div>
+          </div>
+
+          <!-- Ana Sayfa Kart Görselleri Ayarı -->
+          <div class="form-card">
+            <h3><i data-lucide="image" style="color: var(--primary);"></i> Ana Sayfa Kart Görselleri (Kapaklar)</h3>
+            <div class="input-grid" id="categoryThumbInputs"></div>
+          </div>
+
+          <div class="form-card">
+            <h3><i data-lucide="type" style="color: var(--primary);"></i> Ekran Metinlerini Değiştir</h3>
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Ana Sayfa Header Başlığı</label>
+                <input type="text" id="cfg-kiosk-title" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>Geri Dön Buton Yazısı</label>
+                <input type="text" id="cfg-btn-back" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>Yönetim Paneli Buton Yazısı</label>
+                <input type="text" id="cfg-btn-admin" class="form-control">
+              </div>
+              <div class="form-group">
+                <label>Boş Sayfa Başlığı</label>
+                <input type="text" id="cfg-empty-title" class="form-control">
+              </div>
+              <div class="form-group" style="grid-column: span 2;">
+                <label>Boş Sayfa Alt Açıklaması</label>
+                <input type="text" id="cfg-empty-sub" class="form-control">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-card">
+            <h3><i data-lucide="palette" style="color: var(--primary);"></i> Renk Paletini Özelleştir</h3>
+            <div class="input-grid">
+              <div class="form-group">
+                <label>Ana Arka Plan Rengi</label>
+                <input type="color" id="cfg-bg-dark" class="form-control" style="height: 48px; padding: 0.2rem;">
+              </div>
+              <div class="form-group">
+                <label>Yönetim Paneli Arka Planı</label>
+                <input type="color" id="cfg-panel-bg" class="form-control" style="height: 48px; padding: 0.2rem;">
+              </div>
+              <div class="form-group">
+                <label>Ana Vurgu (Primary) Rengi</label>
+                <input type="color" id="cfg-primary" class="form-control" style="height: 48px; padding: 0.2rem;">
+              </div>
+              <div class="form-group">
+                <label>Metin Rengi</label>
+                <input type="color" id="cfg-text-main" class="form-control" style="height: 48px; padding: 0.2rem;">
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+  </div>
+
+  <!-- YÜKLEME BAR POPUP MODAL -->
+  <div class="progress-modal" id="progressModal">
+    <div class="progress-card">
+      <h4 id="progressTitle">Dosya Yükleniyor...</h4>
+      <p id="progressFileName">Lütfen bekleyin...</p>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <div class="progress-percentage" id="progressPercentage">0%</div>
+    </div>
+  </div>
+
+  <div id="toast">
+    <i data-lucide="check-circle" style="color: #10b981;"></i>
+    <span id="toastMsg">İşlem başarıyla tamamlandı.</span>
+  </div>
+
+  <!-- Swiper.js -->
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+
+  <script>
+    // VARSAYILAN VERİLER DÜZELTİLDİ: DERGİLERE SADECE RESİM LİNKLERİ KONULDU
+    const defaultData = [
+      {
+        id: "cat_dergiler",
+        title: "Dergiler",
+        subtitle: "Süreli yayınlar ve dergi koleksiyonları",
+        coverUrl: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80",
+        items: [
+          {
+            id: "item_1",
+            title: "Genç-Ay (Aralık 1958)",
+            type: "image",
+            url: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80"
+          },
+          {
+            id: "item_2",
+            title: "Kumbara (Şubat 1981)",
+            type: "image",
+            url: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=800&q=80"
+          }
+        ]
+      },
+      {
+        id: "cat_videolar",
+        title: "Videolar",
+        subtitle: "Arşiv görüntüler ve mp4 videolar",
+        coverUrl: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=800&q=80",
+        items: []
+      }
+    ];
+
+    const defaultSettings = {
+      adminPassword: "1234",
+      kioskTitle: "Dijital Arşiv & Kiosk",
+      btnBack: "Ana Sayfaya Dön",
+      btnAdmin: "Yönetim Paneli",
+      emptyTitle: "Bu Alanda Henüz İçerik Bulunmuyor",
+      emptySub: "Yönetim panelinden yeni dosya yükleyebilirsiniz.",
+      bgDark: "#090b0e",
+      panelBg: "#11151c",
+      primary: "#3b82f6",
+      textMain: "#f8fafc"
+    };
+
+    let store = [];
+    let settings = {};
+    let currentCatId = "cat_dergiler";
+    let activeAdminTab = "category";
+    let swiperInstance = null;
+    let db = null;
+
+    /* INDEXEDDB YÖNETİMİ */
+    function initIndexedDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open("KioskStorageDB", 1);
+        request.onupgradeneeded = function(e) {
+          db = e.target.result;
+          if (!db.objectStoreNames.contains("kiosk_store")) {
+            db.createObjectStore("kiosk_store", { keyPath: "id" });
+          }
+        };
+        request.onsuccess = function(e) {
+          db = e.target.result;
+          resolve(db);
+        };
+        request.onerror = function(e) {
+          console.error("IndexedDB Hatası:", e);
+          reject(e);
+        };
+      });
+    }
+
+    async function initData() {
+      hideProgressBar();
+      await initIndexedDB();
+      const savedSettings = localStorage.getItem('mobisie_kiosk_settings');
+      settings = savedSettings ? JSON.parse(savedSettings) : defaultSettings;
+
+      const tx = db.transaction("kiosk_store", "readonly");
+      const req = tx.objectStore("kiosk_store").get("data_root");
+      req.onsuccess = function() {
+        if (req.result && req.result.value) {
+          store = req.result.value;
+        } else {
+          store = defaultData;
+          saveData();
+        }
+        applySettings();
+        renderKioskHome();
+      };
+    }
+
+    function saveData() {
+      localStorage.setItem('mobisie_kiosk_settings', JSON.stringify(settings));
+      if (db) {
+        const tx = db.transaction("kiosk_store", "readwrite");
+        tx.objectStore("kiosk_store").put({ id: "data_root", value: store });
+      }
+    }
+
+    function applySettings() {
+      document.getElementById('txt-kiosk-title').innerText = settings.kioskTitle || defaultSettings.kioskTitle;
+      document.getElementById('txt-btn-back').innerText = settings.btnBack || defaultSettings.btnBack;
+      document.getElementById('txt-btn-admin').innerText = settings.btnAdmin || defaultSettings.btnAdmin;
+      document.getElementById('txt-empty-title').innerText = settings.emptyTitle || defaultSettings.emptyTitle;
+      document.getElementById('txt-empty-sub').innerText = settings.emptySub || defaultSettings.emptySub;
+
+      document.documentElement.style.setProperty('--bg-dark', settings.bgDark || defaultSettings.bgDark);
+      document.documentElement.style.setProperty('--panel-bg', settings.panelBg || defaultSettings.panelBg);
+      document.documentElement.style.setProperty('--primary', settings.primary || defaultSettings.primary);
+      document.documentElement.style.setProperty('--text-main', settings.textMain || defaultSettings.textMain);
+
+      document.getElementById('cfg-admin-password').value = settings.adminPassword || defaultSettings.adminPassword;
+      document.getElementById('cfg-kiosk-title').value = settings.kioskTitle || defaultSettings.kioskTitle;
+      document.getElementById('cfg-btn-back').value = settings.btnBack || defaultSettings.btnBack;
+      document.getElementById('cfg-btn-admin').value = settings.btnAdmin || defaultSettings.btnAdmin;
+      document.getElementById('cfg-empty-title').value = settings.emptyTitle || defaultSettings.emptyTitle;
+      document.getElementById('cfg-empty-sub').value = settings.emptySub || defaultSettings.emptySub;
+
+      document.getElementById('cfg-bg-dark').value = settings.bgDark || defaultSettings.bgDark;
+      document.getElementById('cfg-panel-bg').value = settings.panelBg || defaultSettings.panelBg;
+      document.getElementById('cfg-primary').value = settings.primary || defaultSettings.primary;
+      document.getElementById('cfg-text-main').value = settings.textMain || defaultSettings.textMain;
+
+      renderCategoryCoverInputs();
+    }
+
+    function renderCategoryCoverInputs() {
+      const container = document.getElementById('categoryThumbInputs');
+      if (!container) return;
+      container.innerHTML = '';
+
+      store.forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'form-group';
+        div.innerHTML = `
+          <label>"${cat.title}" Kart Arka Plan / Kapak Resmi URL</label>
+          <div style="display:flex; gap:0.5rem;">
+            <input type="text" class="form-control" value="${cat.coverUrl || ''}" onchange="updateCatCover('${cat.id}', this.value)" placeholder="https://...">
+            <button class="btn btn-secondary" onclick="triggerCatCoverUpload('${cat.id}')"><i data-lucide="upload"></i> Yükle</button>
+            <input type="file" id="upload_cat_${cat.id}" accept="image/*" style="display:none;" onchange="handleCatCoverFile('${cat.id}', event)">
+          </div>
+        `;
+        container.appendChild(div);
+      });
+      lucide.createIcons();
+    }
+
+    function triggerCatCoverUpload(catId) {
+      document.getElementById(`upload_cat_${catId}`).click();
+    }
+
+    function handleCatCoverFile(catId, event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      showProgressBar(`Kapak Görseli Yükleniyor: ${file.name}`);
+      const reader = new FileReader();
+
+      reader.onprogress = function(e) {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          updateProgress(percent);
+        }
+      };
+
+      reader.onload = function(evt) {
+        updateProgress(100);
+        setTimeout(() => {
+          hideProgressBar();
+          updateCatCover(catId, evt.target.result);
+          renderCategoryCoverInputs();
+        }, 300);
+      };
+
+      reader.readAsDataURL(file);
+    }
+
+    function updateCatCover(catId, url) {
+      const cat = store.find(c => c.id === catId);
+      if (cat) {
+        cat.coverUrl = url;
+        saveData();
+        showToast(`"${cat.title}" kapak görseli güncellendi!`);
+      }
+    }
+
+    function saveSettings() {
+      settings.adminPassword = document.getElementById('cfg-admin-password').value.trim() || "1234";
+      settings.kioskTitle = document.getElementById('cfg-kiosk-title').value;
+      settings.btnBack = document.getElementById('cfg-btn-back').value;
+      settings.btnAdmin = document.getElementById('cfg-btn-admin').value;
+      settings.emptyTitle = document.getElementById('cfg-empty-title').value;
+      settings.emptySub = document.getElementById('cfg-empty-sub').value;
+
+      settings.bgDark = document.getElementById('cfg-bg-dark').value;
+      settings.panelBg = document.getElementById('cfg-panel-bg').value;
+      settings.primary = document.getElementById('cfg-primary').value;
+      settings.textMain = document.getElementById('cfg-text-main').value;
+
+      saveData();
+      applySettings();
+      showToast("Ayarlar kaydedildi!");
+    }
+
+    /* AKILLI VE RAM-DOSTU SIFIR BELLEK SIZINTILI ZIP EXPORT ENGINE */
+    async function exportZipPackage() {
+      showProgressBar("ZIP Paketleme Hazırlanıyor...");
+      updateProgress(5);
+
+      try {
+        const zip = new JSZip();
+        const assetsFolder = zip.folder("assets");
+        const imagesFolder = assetsFolder.folder("images");
+        const videosFolder = assetsFolder.folder("videos");
+
+        let exportStore = JSON.parse(JSON.stringify(store));
+        let totalItems = 0;
+        exportStore.forEach(c => totalItems += c.items.length);
+
+        let processedItems = 0;
+
+        for (let c = 0; c < exportStore.length; c++) {
+          let cat = exportStore[c];
+
+          if (cat.coverUrl && (cat.coverUrl.startsWith("data:") || cat.coverUrl.startsWith("blob:"))) {
+            let ext = "jpg";
+            let coverName = `cover_${cat.id}.${ext}`;
+            try {
+              let res = await fetch(cat.coverUrl);
+              let blob = await res.blob();
+              imagesFolder.file(coverName, blob);
+              cat.coverUrl = `assets/images/${coverName}`;
+            } catch(e){}
+          }
+
+          for (let i = 0; i < cat.items.length; i++) {
+            let item = cat.items[i];
+            processedItems++;
+
+            let percent = Math.round((processedItems / Math.max(totalItems, 1)) * 75);
+            updateProgress(percent, `İşleniyor: ${item.title}`);
+
+            if (item.url && (item.url.startsWith("data:") || item.url.startsWith("blob:"))) {
+              let isVideo = item.type === 'video' || item.url.startsWith("data:video");
+              let mime = isVideo ? "mp4" : "jpg";
+              let fileName = `media_${cat.id}_${i + 1}.${mime}`;
+
+              try {
+                let res = await fetch(item.url);
+                let blob = await res.blob();
+
+                if (isVideo) {
+                  videosFolder.file(fileName, blob, { binary: true, compression: "STORE" });
+                  item.url = `assets/videos/${fileName}`;
+                } else {
+                  imagesFolder.file(fileName, blob, { binary: true });
+                  item.url = `assets/images/${fileName}`;
+                }
+              } catch (e) {
+                console.error("Medya okuma hatası:", e);
+              }
+            }
+            await new Promise(r => setTimeout(r, 15));
+          }
+        }
+
+        updateProgress(85, "Temiz index.html dosyası oluşturuluyor...");
+
+        let standaloneHtml = generateCleanHtml(exportStore, settings);
+        zip.file("index.html", standaloneHtml);
+
+        updateProgress(90, "Paket sıkıştırılmadan arşivleniyor...");
+        
+        const zipBlob = await zip.generateAsync({ 
+          type: "blob",
+          compression: "STORE"
+        });
+
+        saveAs(zipBlob, "kiosk_proje_paketi.zip");
+
+        updateProgress(100);
+        setTimeout(() => {
+          hideProgressBar();
+          showToast("Proje paketi (ZIP) indirildi!");
+        }, 300);
+
+      } catch (err) {
+        hideProgressBar();
+        console.error("ZIP Export Hatası:", err);
+        alert("ZIP oluşturulurken bellek hatası: " + err.message);
+      }
+    }
+
+    function generateCleanHtml(exportStore, exportSettings) {
+      let currentDoc = document.documentElement.cloneNode(true);
+      let progressEl = currentDoc.querySelector('#progressModal');
+      if (progressEl) progressEl.classList.remove('active');
+      return "<!DOCTYPE html>\n" + currentDoc.outerHTML;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function showProgressBar(filename) {
+      document.getElementById('progressTitle').innerText = "İşlem Sürüyor...";
+      document.getElementById('progressFileName').innerText = filename;
+      document.getElementById('progressBarFill').style.width = '0%';
+      document.getElementById('progressPercentage').innerText = '0%';
+      document.getElementById('progressModal').classList.add('active');
+    }
+
+    function updateProgress(percent, filename) {
+      document.getElementById('progressBarFill').style.width = percent + '%';
+      document.getElementById('progressPercentage').innerText = percent + '%';
+      if (filename) document.getElementById('progressFileName').innerText = filename;
+    }
+
+    function hideProgressBar() {
+      const modal = document.getElementById('progressModal');
+      if (modal) modal.classList.remove('active');
+    }
+
+    function toggleAdminMode(showAdmin) {
+      const adminEl = document.getElementById('admin-mode');
+      if (showAdmin) {
+        const passwordInput = prompt("Yönetim Paneline Erişmek İçin Şifre Girin:");
+        const currentPassword = settings.adminPassword || defaultSettings.adminPassword;
+
+        if (passwordInput !== currentPassword) {
+          alert("Hatalı şifre! Erişim engellendi.");
+          return;
+        }
+
+        adminEl.classList.add('active');
+        renderAdmin();
+      } else {
+        adminEl.classList.remove('active');
+        renderKioskHome();
+      }
+    }
+
+    function selectAdminTab(tabName) {
+      activeAdminTab = tabName;
+      document.getElementById('admin-tab-category').style.display = tabName === 'category' ? 'block' : 'none';
+      document.getElementById('admin-tab-settings').style.display = tabName === 'settings' ? 'block' : 'none';
+
+      const navSettings = document.getElementById('nav-item-settings');
+      if (tabName === 'settings') {
+        navSettings.classList.add('active');
+      } else {
+        navSettings.classList.remove('active');
+      }
+      renderAdminNav();
+    }
+
+    /* KIOSK LOGIC */
+    function renderKioskHome() {
+      pauseAllVideos();
+      const grid = document.getElementById('kiosk-home-grid');
+      grid.innerHTML = '';
+
+      store.forEach(cat => {
+        const card = document.createElement('div');
+        card.className = 'kiosk-category-card';
+        card.onclick = () => kioskNavGallery(cat.id);
+
+        card.innerHTML = `
+          ${cat.coverUrl ? `<img src="${cat.coverUrl}" class="kiosk-category-card-bg">` : ''}
+          <div class="kiosk-category-card-content">
+            <span class="badge-count">${cat.items.length} Dosya</span>
+            <h2>${cat.title}</h2>
+            <p>${cat.subtitle}</p>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+
+      document.getElementById('kiosk-page-home').classList.add('active');
+      document.getElementById('kiosk-page-gallery').classList.remove('active');
+      document.getElementById('kiosk-back-btn').style.display = 'none';
+
+      lucide.createIcons();
+    }
+
+    function kioskNavGallery(catId) {
+      pauseAllVideos();
+      const cat = store.find(c => c.id === catId);
+      if (!cat) return;
+
+      const grid = document.getElementById('kiosk-gallery-grid');
+      const emptyState = document.getElementById('kiosk-empty-state');
+      const swiperWrapper = document.getElementById('swiperWrapper');
+
+      grid.innerHTML = '';
+      swiperWrapper.innerHTML = '';
+
+      if (cat.items.length === 0) {
+        grid.style.display = 'none';
+        emptyState.style.display = 'flex';
+      } else {
+        grid.style.display = 'grid';
+        emptyState.style.display = 'none';
+
+        cat.items.forEach((item, idx) => {
+          // Dosya türünü tespit etme mantığı kesinleştirildi
+          const isVideo = item.type === 'video' || (item.url && (item.url.match(/\.(mp4|webm)$/i) || item.url.startsWith("data:video") || item.url.startsWith("blob:")));
+
+          const thumb = document.createElement('div');
+          thumb.className = 'kiosk-thumb-card';
+          thumb.onclick = () => openLightbox(catId, idx);
+          
+          thumb.innerHTML = `
+            <div class="kiosk-thumb-media-wrapper">
+              ${isVideo ? 
+                `<video src="${item.url}#t=0.1" preload="metadata" muted class="thumb-video-el"></video><div class="video-play-badge"><i data-lucide="play" style="width:24px; height:24px; fill:white;"></i></div>` : 
+                `<img src="${item.url}" alt="${item.title}" loading="lazy" onerror="this.src='https://placehold.co/400x500/1e293b/ffffff?text=Resim+Yuklenemedi'">`
+              }
+            </div>
+            <div class="kiosk-thumb-info">
+              <div class="kiosk-thumb-title">${item.title}</div>
+            </div>
+          `;
+          grid.appendChild(thumb);
+
+          const slide = document.createElement('div');
+          slide.className = 'swiper-slide';
+          slide.innerHTML = `
+            ${isVideo ? 
+              `<video class="slide-video-el" controls playsinline src="${item.url}" style="max-width:85vw; max-height:80vh; border-radius:12px;"></video>` :
+              `<div class="swiper-zoom-container"><img src="${item.url}" alt="${item.title}"></div>`
+            }
+            <div class="slide-caption">
+              <h3>${item.title}</h3>
+            </div>
+          `;
+          swiperWrapper.appendChild(slide);
+        });
+      }
+
+      document.getElementById('kiosk-page-home').classList.remove('active');
+      document.getElementById('kiosk-page-gallery').classList.add('active');
+      document.getElementById('kiosk-back-btn').style.display = 'inline-flex';
+
+      initSwiper();
+      lucide.createIcons();
+    }
+
+    function kioskNavHome() {
+      document.getElementById('kiosk-page-gallery').classList.remove('active');
+      document.getElementById('kiosk-page-home').classList.add('active');
+      document.getElementById('kiosk-back-btn').style.display = 'none';
+      pauseAllVideos();
+    }
+
+    function initSwiper() {
+      if (swiperInstance) swiperInstance.destroy(true, true);
+
+      swiperInstance = new Swiper('.mySwiper', {
+        zoom: { maxRatio: 3, minRatio: 1, toggle: true },
+        spaceBetween: 40,
+        keyboard: { enabled: true },
+        grabCursor: true,
+        on: {
+          slideChange: function () {
+            playCurrentSlideVideo();
+          }
+        }
+      });
+    }
+
+    function playCurrentSlideVideo() {
+      pauseAllVideos();
+      if (!swiperInstance) return;
+      const activeSlide = swiperInstance.slides[swiperInstance.activeIndex];
+      if (activeSlide) {
+        const video = activeSlide.querySelector('video.slide-video-el');
+        if (video) {
+          video.currentTime = 0;
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => {
+              console.log('Otomatik oynatma kısıtlandı, ses kapatılarak deneniyor:', e);
+              video.muted = true;
+              video.play();
+            });
+          }
+        }
+      }
+    }
+
+    function openLightbox(catId, index) {
+      const modal = document.getElementById('kioskLightbox');
+      modal.classList.add('active');
+      if (swiperInstance) {
+        swiperInstance.update();
+        swiperInstance.slideTo(index, 0);
+        setTimeout(playCurrentSlideVideo, 150);
+      }
+    }
+
+    function closeLightbox() {
+      document.getElementById('kioskLightbox').classList.remove('active');
+      pauseAllVideos();
+      if (swiperInstance && swiperInstance.zoom) {
+        swiperInstance.zoom.out();
+      }
+    }
+
+    function pauseAllVideos() {
+      document.querySelectorAll('video').forEach(v => {
+        try { v.pause(); } catch(e){}
+      });
+    }
+
+    /* ADMIN LOGIC */
+    function renderAdminNav() {
+      const nav = document.getElementById('adminCategoryNav');
+      nav.innerHTML = '';
+
+      store.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = `admin-nav-item ${activeAdminTab === 'category' && cat.id === currentCatId ? 'active' : ''}`;
+        item.onclick = () => {
+          currentCatId = cat.id;
+          selectAdminTab('category');
+          renderAdmin();
+        };
+
+        item.innerHTML = `
+          <div class="nav-title">
+            <span>${cat.title}</span>
+          </div>
+          <span style="font-size:0.8rem; opacity:0.6;">${cat.items.length}</span>
+        `;
+        nav.appendChild(item);
+      });
+
+      lucide.createIcons();
+    }
+
+    function renderAdmin() {
+      renderAdminNav();
+
+      const currentCat = store.find(c => c.id === currentCatId);
+      if (currentCat) {
+        document.getElementById('adminCurrentCatTitle').innerText = currentCat.title;
+        document.getElementById('adminCurrentCatSub').innerText = currentCat.subtitle;
+        document.getElementById('editCatTitle').value = currentCat.title || "";
+        document.getElementById('editCatSubtitle').value = currentCat.subtitle || "";
+        document.getElementById('itemCount').innerText = currentCat.items.length;
+
+        const grid = document.getElementById('adminItemsGrid');
+        grid.innerHTML = '';
+
+        currentCat.items.forEach((item) => {
+          const isVideo = item.type === 'video' || (item.url && (item.url.match(/\.(mp4|webm)$/i) || item.url.startsWith("data:video") || item.url.startsWith("blob:")));
+
+          const card = document.createElement('div');
+          card.className = 'admin-item-card';
+          card.innerHTML = `
+            ${isVideo ? 
+              `<video class="admin-item-media" src="${item.url}#t=0.5" preload="metadata" muted></video>` : 
+              `<img class="admin-item-media" src="${item.url}" onerror="this.src='https://placehold.co/400x500/1e293b/ffffff?text=Resim+Yok'">`
+            }
+            <div class="admin-item-details">
+              <div class="form-group" style="margin-bottom:0.8rem;">
+                <label style="font-size:0.75rem;">Medya Adı / Alt Yazı</label>
+                <input type="text" class="form-control" style="padding:0.5rem; font-size:0.9rem;" value="${item.title}" onchange="updateItemTitle('${item.id}', this.value)">
+              </div>
+              <div class="admin-item-actions">
+                <button class="btn btn-danger" style="padding:0.4rem 0.8rem; font-size:0.8rem; width:100%; justify-content:center;" onclick="deleteItem('${item.id}')">
+                  <i data-lucide="trash"></i> Sil
+                </button>
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      }
+
+      lucide.createIcons();
+    }
+
+    function saveCurrentCategoryMeta() {
+      const currentCat = store.find(c => c.id === currentCatId);
+      if (currentCat) {
+        currentCat.title = document.getElementById('editCatTitle').value;
+        currentCat.subtitle = document.getElementById('editCatSubtitle').value;
+        saveData();
+        renderAdminNav();
+        document.getElementById('adminCurrentCatTitle').innerText = currentCat.title;
+        document.getElementById('adminCurrentCatSub').innerText = currentCat.subtitle;
+        showToast("Alan bilgileri güncellendi!");
+      }
+    }
+
+    function updateItemTitle(itemId, newTitle) {
+      const currentCat = store.find(c => c.id === currentCatId);
+      if (currentCat) {
+        const item = currentCat.items.find(i => i.id === itemId);
+        if (item) {
+          item.title = newTitle;
+          saveData();
+          showToast("İsim güncellendi!");
+        }
+      }
+    }
+
+    function openNewCategoryModal() {
+      const title = prompt("Yeni Alan / Kategori Adı (Örn: Haritalar):");
+      if (!title) return;
+      const subtitle = prompt("Açıklama / Alt Başlık:", "Sergilenen koleksiyonlar");
+
+      const newCat = {
+        id: "cat_" + Date.now(),
+        title: title,
+        subtitle: subtitle || "",
+        coverUrl: "",
+        items: []
+      };
+
+      store.push(newCat);
+      currentCatId = newCat.id;
+      saveData();
+      selectAdminTab('category');
+      renderAdmin();
+      renderCategoryCoverInputs();
+      showToast("Yeni alan oluşturuldu.");
+    }
+
+    function deleteCurrentCategory() {
+      if (store.length <= 1) {
+        alert("En az bir kategori kalmalıdır!");
+        return;
+      }
+      if (confirm("Bu kategoriyi ve içindeki tüm dosyaları silmek istediğinize emin misiniz?")) {
+        store = store.filter(c => c.id !== currentCatId);
+        currentCatId = store[0].id;
+        saveData();
+        renderAdmin();
+        renderCategoryCoverInputs();
+        showToast("Kategori silindi.");
+      }
+    }
+
+    function cleanFileName(rawName) {
+      return rawName
+        .replace(/\.[^/.]+$/, "")
+        .replace(/adlı dosyanın kopyası/gi, "")
+        .replace(/kopya(sı)?/gi, "")
+        .replace(/_/g, " ")
+        .trim();
+    }
+
+    /* DOSYA YÜKLEME SÜZGEÇ VE YÖNETİMİ */
+    function handleFileSelect(e) {
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+
+      let fileIndex = 0;
+
+      function processNextFile() {
+        if (fileIndex >= files.length) {
+          saveData();
+          setTimeout(() => {
+            hideProgressBar();
+            renderAdmin();
+            showToast("Tüm medya dosyaları veritabanına başarıyla kaydedildi!");
+            document.getElementById('fileInput').value = '';
+          }, 300);
+          return;
+        }
+
+        const file = files[fileIndex];
+        const isVideo = file.type.startsWith('video/');
+
+        showProgressBar(`Yükleniyor (${fileIndex + 1}/${files.length}): ${file.name}`);
+
+        const blobUrl = URL.createObjectURL(file);
+
+        const currentCat = store.find(c => c.id === currentCatId);
+        if (currentCat) {
+          currentCat.items.push({
+            id: "item_" + Date.now() + "_" + Math.random().toString(36).substr(2, 4),
+            title: cleanFileName(file.name),
+            type: isVideo ? "video" : "image",
+            url: blobUrl
+          });
+        }
+
+        updateProgress(100);
+        fileIndex++;
+        setTimeout(processNextFile, 50);
+      }
+
+      processNextFile();
+    }
+
+    function addUrlItem() {
+      const title = document.getElementById('inputItemTitle').value.trim();
+      const url = document.getElementById('inputItemUrl').value.trim();
+
+      if (!url) {
+        alert("Lütfen geçerli bir URL adresi girin!");
+        return;
+      }
+
+      showProgressBar(`URL Adresi Ekleniyor...`);
+      updateProgress(50);
+
+      const isVideo = url.match(/\.(mp4|webm)$/i);
+      const currentCat = store.find(c => c.id === currentCatId);
+
+      if (currentCat) {
+        currentCat.items.push({
+          id: "item_" + Date.now(),
+          title: title ? cleanFileName(title) : (isVideo ? "Video" : "Görsel"),
+          type: isVideo ? "video" : "image",
+          url: url
+        });
+
+        document.getElementById('inputItemTitle').value = '';
+        document.getElementById('inputItemUrl').value = '';
+
+        saveData();
+        updateProgress(100);
+        setTimeout(() => {
+          hideProgressBar();
+          renderAdmin();
+          showToast("Dosya eklendi!");
+        }, 300);
+      }
+    }
+
+    function deleteItem(itemId) {
+      const currentCat = store.find(c => c.id === currentCatId);
+      if (currentCat) {
+        currentCat.items = currentCat.items.filter(i => i.id !== itemId);
+        saveData();
+        renderAdmin();
+        showToast("Öğe silindi.");
+      }
+    }
+
+    const dropZone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      handleFileSelect({ target: { files: files } });
+    });
+
+    window.onload = async function() {
+      await initData();
+      toggleAdminMode(false); // Sadece Kiosk Sergi Modu ile başlamayı zorlar
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
